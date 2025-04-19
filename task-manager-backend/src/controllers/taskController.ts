@@ -131,74 +131,93 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
   };
   
 
-
-export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ message: "User not authenticated" });
-      return;
-    }
-
-    const userId = req.user.userId;
-
-    const tasks = await Task.find({ userId });
-
-    if (tasks.length === 0) {
-      res.status(200).json({ message: "No tasks present" });
-      return;
-    }
-
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter((task) => task.status === "finished");
-    const pendingTasks = tasks.filter((task) => task.status === "pending");
-
-    const percentCompleted = ((completedTasks.length / totalTasks) * 100).toFixed(2);
-    const percentPending = ((pendingTasks.length / totalTasks) * 100).toFixed(2);
-
-    const pendingStats: any = {};
-
-    pendingTasks.forEach((task) => {
-      const priority = task.priority;
-      const startTime = new Date(task.startTime).getTime();
-      const endTime = new Date(task.endTime).getTime();
-      const currentTime = Date.now();
-
-      const lapsedTime = currentTime > startTime ? currentTime - startTime : 0;
-      const balanceTime = endTime > currentTime ? endTime - currentTime : 0;
-
-      if (!pendingStats[priority]) {
-        pendingStats[priority] = { totalLapsed: 0, totalBalance: 0, count: 0 };
+  export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      // Check if the user is authenticated
+      if (!req.user) {
+        res.status(401).json({ message: "User not authenticated" });
+        return;
       }
-
-      pendingStats[priority].totalLapsed += lapsedTime;
-      pendingStats[priority].totalBalance += balanceTime;
-      pendingStats[priority].count += 1;
-    });
-
-    const pendingStatsFormatted = Object.keys(pendingStats).map((priority) => ({
-      priority: Number(priority),
-      totalLapsed: (pendingStats[priority].totalLapsed / (1000 * 60)).toFixed(2), // in minutes
-      totalBalance: (pendingStats[priority].totalBalance / (1000 * 60)).toFixed(2), // in minutes
-    }));
-
-    const totalCompletionTime = completedTasks.reduce((acc, task) => {
-      const startTime = new Date(task.startTime).getTime();
-      const endTime = new Date(task.endTime).getTime();
-      return acc + (endTime - startTime) / (1000 * 60 * 60); // hours
-    }, 0);
-
-    const avgCompletionTime =
-      completedTasks.length > 0 ? (totalCompletionTime / completedTasks.length).toFixed(2) : "N/A";
-
-    res.status(200).json({
-      totalTasks,
-      percentCompleted,
-      percentPending,
-      pendingStats: pendingStatsFormatted,
-      avgCompletionTime,
-    });
-  } catch (error) {
-    console.error("Error in getting taskDashboard:", error);
-    res.status(500).json({ message: "Internal Server error", error });
-  }
-};
+  
+      const userId = req.user.userId;
+  
+      // Fetch tasks for the logged-in user
+      const tasks = await Task.find({ userId });
+  
+      // Handle the case where there are no tasks
+      if (tasks.length === 0) {
+        res.status(200).json({
+          totalTasks: 0,
+          taskCompleted: 0,
+          pendingTasks: 0,
+          percentCompleted: "0.00",
+          percentPending: "0.00",
+          timeLapsed: 0,
+          estimatedTimeToFinish: 0,
+          pendingStats: [],
+          avgCompletionTime: "N/A",
+        });
+        return;
+      }
+  
+      // Calculate total tasks, completed tasks, and pending tasks
+      const totalTasks = tasks.length;
+      const completedTasks = tasks.filter((task) => task.status === "finished");
+      const pendingTasks = tasks.filter((task) => task.status === "pending");
+  
+      // Calculate percentages
+      const percentCompleted = ((completedTasks.length / totalTasks) * 100).toFixed(2);
+      const percentPending = ((pendingTasks.length / totalTasks) * 100).toFixed(2);
+  
+      // Calculate pending stats
+      const pendingStats: any = {};
+  
+      pendingTasks.forEach((task) => {
+        const priority = task.priority;
+        const startTime = new Date(task.startTime).getTime();
+        const endTime = new Date(task.endTime).getTime();
+        const currentTime = Date.now();
+  
+        const lapsedTime = currentTime > startTime ? currentTime - startTime : 0;
+        const balanceTime = endTime > currentTime ? endTime - currentTime : 0;
+  
+        if (!pendingStats[priority]) {
+          pendingStats[priority] = { totalLapsed: 0, totalBalance: 0, count: 0 };
+        }
+  
+        pendingStats[priority].totalLapsed += lapsedTime;
+        pendingStats[priority].totalBalance += balanceTime;
+        pendingStats[priority].count += 1;
+      });
+  
+      const pendingStatsFormatted = Object.keys(pendingStats).map((priority) => ({
+        priority: Number(priority),
+        totalLapsed: (pendingStats[priority].totalLapsed / (1000 * 60)).toFixed(2), // in minutes
+        totalBalance: (pendingStats[priority].totalBalance / (1000 * 60)).toFixed(2), // in minutes
+      }));
+  
+      // Calculate average completion time for completed tasks
+      const totalCompletionTime = completedTasks.reduce((acc, task) => {
+        const startTime = new Date(task.startTime).getTime();
+        const endTime = new Date(task.endTime).getTime();
+        return acc + (endTime - startTime) / (1000 * 60 * 60); // hours
+      }, 0);
+  
+      const avgCompletionTime =
+        completedTasks.length > 0 ? (totalCompletionTime / completedTasks.length).toFixed(2) : "N/A";
+  
+      // Send the response
+      res.status(200).json({
+        totalTasks,
+        taskCompleted: completedTasks.length,
+        pendingTasks: pendingTasks.length,
+        percentCompleted,
+        percentPending,
+        pendingStats: pendingStatsFormatted,
+        avgCompletionTime,
+      });
+    } catch (error) {
+      console.error("Error in getting taskDashboard:", error);
+      res.status(500).json({ message: "Internal Server error", error });
+    }
+  };
