@@ -84,44 +84,52 @@ export const getTasks = async (req: AuthRequest, res: Response, next: NextFuncti
 
 // 📌 Update Task
 export const updateTask = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const updatedTask = await Task.findByIdAndUpdate(id, req.body, { new: true });
-
-    if (!updatedTask) {
-      res.status(404).json({ message: "Task not found" });
-      return;
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+  
+      // 👇 Yeh line add kari: pehle task uthayenge sirf usi user ka
+      const task = await Task.findOne({ _id: id, userId: req.user?.userId });
+      if (!task) {
+        res.status(404).json({ message: "Task not found or not authorized" });
+        return;
+      }
+  
+      // ✅ Ab update karenge
+      Object.assign(task, req.body);
+  
+      if (status === "finished" && !task.endTime) {
+        task.endTime = new Date();
+      }
+  
+      await task.save();
+  
+      res.status(200).json(task);
+    } catch (error) {
+      res.status(500).json({ message: "Error updating task", error });
     }
+  };
 
-    if (status === "finished" && !updatedTask.endTime) {
-      updatedTask.endTime = new Date();
-      await updatedTask.save();
+
+  export const deleteTask = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+  
+      // 👇 Yeh line add kari: pehle task uthayenge sirf usi user ka
+      const task = await Task.findOne({ _id: id, userId: req.user?.userId });
+      if (!task) {
+        res.status(404).json({ message: "Task not found or not authorized" });
+        return;
+      }
+  
+      await task.deleteOne();
+  
+      res.status(200).json({ success: true, message: "Task deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Error deleting task", error });
     }
-
-    res.status(200).json(updatedTask);
-  } catch (error) {
-    res.status(500).json({ message: "Error updating task", error });
-  }
-};
-
-
-export const deleteTask = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const deletedTask = await Task.findByIdAndDelete(id);
-
-    if (!deletedTask) {
-      res.status(404).json({ message: "Task not found" });
-      return;
-    }
-
-    res.status(200).json({ success: true, message: "Task deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Error deleting task", error });
-  }
-};
+  };
+  
 
 
 export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
